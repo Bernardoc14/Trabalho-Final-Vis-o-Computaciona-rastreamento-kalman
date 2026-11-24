@@ -22,11 +22,19 @@ AVISOS = {"no_escuro": "SEM MEDICAO: filtro no escuro",
           "perdido": "TRILHA PERDIDA"}
 
 
+def ajustar(frame):
+    """Reduz o quadro para caber em 640x480 SEM esticar (mantem a proporcao original)."""
+    h, w = frame.shape[:2]
+    s = min(640 / w, 480 / h)
+    return cv2.resize(frame, (round(w * s), round(h * s)))
+
+
 def ponto(p):
     return (int(round(p[0])), int(round(p[1])))
 
 
 def desenhar(frame, k, z, s, trilha, escuro):
+    H, W = frame.shape[:2]
     if s is None:                                           # ainda sem trilha
         cv2.putText(frame, "AGUARDANDO DETECCAO", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, VERMELHO, 2)
     else:
@@ -43,13 +51,13 @@ def desenhar(frame, k, z, s, trilha, escuro):
             cv2.circle(frame, ponto(s["est"]), 5, LARANJA, -1)  # estimativa (laranja)
         if s["estado"] != "medido":
             texto = AVISOS[s["estado"]] + (f"  ({escuro} quadros)" if s["estado"] != "perdido" else "")
-            cv2.rectangle(frame, (0, 0), (640, 40), (0, 0, 0), -1)
+            cv2.rectangle(frame, (0, 0), (W, 40), (0, 0, 0), -1)
             cv2.putText(frame, texto, (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
     # legenda e numero do quadro
     for i, (nome, cor) in enumerate([("medicao", AZUL), ("predicao", VERMELHO), ("estimativa", LARANJA)]):
-        cv2.circle(frame, (15 + 130 * i, 465), 6, cor, -1)
-        cv2.putText(frame, nome, (28 + 130 * i, 470), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
-    cv2.putText(frame, f"quadro {k}", (540, 470), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+        cv2.circle(frame, (15 + 130 * i, H - 15), 6, cor, -1)
+        cv2.putText(frame, nome, (28 + 130 * i, H - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+    cv2.putText(frame, f"quadro {k}", (W - 100, H - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
 
 
 def main():
@@ -70,7 +78,7 @@ def main():
     os.makedirs(a.pasta, exist_ok=True)
     nome = a.nome or os.path.splitext(os.path.basename(a.video))[0]
     fps = cap.get(cv2.CAP_PROP_FPS) or 30
-    saida = cv2.VideoWriter(f"{a.pasta}/{nome}_saida.mp4", cv2.VideoWriter_fourcc(*"mp4v"), fps, (640, 480))
+    saida = None
 
     rastreador = Rastreador(sd=a.sd, sm=a.sm, max_sem_medicao=a.max_sem)
     det, rast, trilha = [], [], []
@@ -80,7 +88,10 @@ def main():
         ok, frame = cap.read()
         if not ok:
             break
-        frame = cv2.resize(frame, (640, 480))
+        frame = ajustar(frame)
+        if saida is None:
+            h, w = frame.shape[:2]
+            saida = cv2.VideoWriter(f"{a.pasta}/{nome}_saida.mp4", cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
         z = detectar(frame)                    # (px, py) ou None   <- Pessoa A
         s = rastreador.step(z)                 # predicao + gating + correcao   <- Pessoa B
 
@@ -108,7 +119,9 @@ def main():
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
 
-    cap.release(); saida.release(); cv2.destroyAllWindows()
+    cap.release(); cv2.destroyAllWindows()
+    if saida is not None:
+        saida.release()
     with open(f"{a.pasta}/{nome}_deteccoes.csv", "w", newline="") as f:
         w = csv.writer(f); w.writerow(["frame", "zx", "zy"]); w.writerows(det)
     with open(f"{a.pasta}/{nome}_rastreamento.csv", "w", newline="") as f:
