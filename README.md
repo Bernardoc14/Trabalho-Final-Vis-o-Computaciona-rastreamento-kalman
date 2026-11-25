@@ -1,7 +1,7 @@
 # Rastreamento de objeto colorido com filtro de Kalman
 
 Trabalho final de Visão Computacional (UFPI, 2026.2). Opção 01: rastreamento de uma bola colorida
-com oclusões e predição de trajetória. Equipe: _(colocar os nomes da dupla)_
+com oclusões e predição de trajetória. Equipe: Bernardo Cavalcante e Francisco Rafael
 
 Um detector por cor (HSV + morfologia + centroide) fornece a posição da bola a cada quadro.
 O filtro de Kalman, implementado do zero em NumPy, combina essas medições com um modelo de
