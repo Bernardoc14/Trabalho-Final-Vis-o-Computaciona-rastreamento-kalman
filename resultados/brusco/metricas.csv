@@ -1,4 +1,7 @@
-config,sd,erro_bruto_px,erro_filtrado_px,tremor_bruto,tremor_filtrado,atraso_quadros,oclusao_quadros,recuperados_ate_20px,quadros_ate_retomar,erro_na_oclusao_px
-teimoso (elefante),0.5,7.29,139.88,4.4,5.48,1,17,0/1,11,125.43
-intermedi�rio,3.0,7.29,7.69,4.4,2.79,0,17,0/1,0,26.45
-nervoso (peixinho-dourado),20.0,7.29,7.27,4.4,4.11,0,17,1/1,0,18.38
+﻿modelo,config,sd,erro_bruto_px,erro_filtrado_px,tremor_bruto,tremor_filtrado,atraso_quadros,oclusao_quadros,recuperados_ate_20px,quadros_ate_retomar,erro_na_oclusao_px,erro_reentrada_px,rejeitados,trilhas_perdidas
+cv,teimoso (elefante),0.5,7.29,139.88,4.4,5.48,1,17,0/1,11,125.43,412.67,164,6
+cv,intermediário,3.0,7.29,7.69,4.4,2.79,0,17,0/1,0,26.45,152.87,0,1
+cv,nervoso (peixinho-dourado),20.0,7.29,7.27,4.4,4.11,0,17,1/1,0,18.38,126.08,0,1
+ca,teimoso (elefante),0.5,7.29,232.35,4.4,15.96,0,17,1/1,0,19.68,122.95,122,4
+ca,intermediário,3.0,7.29,7.21,4.4,2.91,0,17,1/1,0,9.04,44.46,0,1
+ca,nervoso (peixinho-dourado),20.0,7.29,7.26,4.4,4.13,0,17,1/1,0,5.63,59.28,0,1
