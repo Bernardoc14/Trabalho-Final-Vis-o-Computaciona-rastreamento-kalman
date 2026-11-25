@@ -11,5 +11,5 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Pastas (por enquanto)
-videos/
+# Pastas
+resultados/
