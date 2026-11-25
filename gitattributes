@@ -1,0 +1,5 @@
+# Normaliza o fim de linha (evita "arquivo modificado" só por CRLF x LF entre Windows e Linux)
+* text=auto eol=lf
+*.mp4 binary
+*.png binary
+*.jpg binary

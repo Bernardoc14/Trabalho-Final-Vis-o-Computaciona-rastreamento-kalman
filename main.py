@@ -1,11 +1,12 @@
-"""main.py: liga o detector (Pessoa A) ao filtro de Kalman (Pessoa B).
+"""main.py: liga o detector (detector.py) ao filtro de Kalman (kalman.py) e gera o video com as sobreposicoes.
 
 Uso (sempre a partir da raiz do projeto):
     python main.py --video videos/normal.mp4
-    python main.py --video videos/oclusao.mp4 --nome oclusao --sd 3 --sm 8
+    python main.py --video videos/oclusao.mp4 --sd 3 --sm 8
+    python main.py --video videos/brusco.mp4 --modelo ca --k 10    # aceleracao constante + previsao a 10 quadros
 Teclas na janela: q = sair.  Sem janela (so grava): --sem-janela
 
-Gera em resultados/:
+Gera em resultados/ (<nome> = nome do video; com --modelo ca vira <nome>_ca):
     <nome>_saida.mp4          video com as sobreposicoes
     <nome>_deteccoes.csv      frame,zx,zy   (vazio quando nao detectou) -> entrada do experimentos.py
     <nome>_rastreamento.csv   frame,estado,pred_x,pred_y,est_x,est_y
@@ -17,6 +18,7 @@ from kalman import Rastreador
 
 AZUL, VERMELHO, LARANJA = (255, 0, 0), (0, 0, 255), (0, 165, 255)   # BGR
 CINZA = (190, 190, 190)
+VERDE = (0, 160, 0)                                                   # previsao a k quadros (extra)
 AVISOS = {"no_escuro": "SEM MEDICAO: filtro no escuro",
           "rejeitado": "MEDICAO REJEITADA (fora da regiao de busca)",
           "perdido": "TRILHA PERDIDA"}
@@ -30,10 +32,11 @@ def ajustar(frame):
 
 
 def ponto(p):
-    return (int(round(p[0])), int(round(p[1])))
+    lim = lambda v: int(max(-10000, min(10000, round(v))))   # evita overflow do cv2 se a previsao explodir
+    return (lim(p[0]), lim(p[1]))
 
 
-def desenhar(frame, k, z, s, trilha, escuro):
+def desenhar(frame, k, z, s, trilha, escuro, fut=None, kfut=0):
     H, W = frame.shape[:2]
     if s is None:                                           # ainda sem trilha
         cv2.putText(frame, "AGUARDANDO DETECCAO", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, VERMELHO, 2)
@@ -49,12 +52,18 @@ def desenhar(frame, k, z, s, trilha, escuro):
         cv2.circle(frame, ponto(s["pred"]), 9, VERMELHO, 2)     # predicao (vermelho)
         if s["est"] is not None:
             cv2.circle(frame, ponto(s["est"]), 5, LARANJA, -1)  # estimativa (laranja)
+        if fut is not None and s["est"] is not None:            # onde a bola estara daqui a kfut quadros
+            cv2.line(frame, ponto(s["est"]), ponto(fut), VERDE, 1)
+            cv2.drawMarker(frame, ponto(fut), VERDE, cv2.MARKER_CROSS, 14, 2)
         if s["estado"] != "medido":
             texto = AVISOS[s["estado"]] + (f"  ({escuro} quadros)" if s["estado"] != "perdido" else "")
             cv2.rectangle(frame, (0, 0), (W, 40), (0, 0, 0), -1)
             cv2.putText(frame, texto, (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
     # legenda e numero do quadro
-    for i, (nome, cor) in enumerate([("medicao", AZUL), ("predicao", VERMELHO), ("estimativa", LARANJA)]):
+    legenda = [("medicao", AZUL), ("predicao", VERMELHO), ("estimativa", LARANJA)]
+    if kfut > 0:
+        legenda.append((f"previsao +{kfut}", VERDE))
+    for i, (nome, cor) in enumerate(legenda):
         cv2.circle(frame, (15 + 130 * i, H - 15), 6, cor, -1)
         cv2.putText(frame, nome, (28 + 130 * i, H - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
     cv2.putText(frame, f"quadro {k}", (W - 100, H - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
@@ -68,6 +77,10 @@ def main():
     ap.add_argument("--sd", type=float, default=3.0, help="desvio do ruido do modelo (Sd)")
     ap.add_argument("--sm", type=float, default=8.0, help="desvio do ruido da medicao (Sm), em pixels")
     ap.add_argument("--max-sem", type=int, default=30, help="max. de quadros so com predicao")
+    ap.add_argument("--modelo", choices=["cv", "ca"], default="cv",
+                    help="cv = velocidade constante (padrao); ca = aceleracao constante")
+    ap.add_argument("--sa", type=float, default=None, help="ruido da aceleracao no modelo ca (padrao: sd/10)")
+    ap.add_argument("--k", type=int, default=0, help="se > 0, desenha a previsao k quadros a frente")
     ap.add_argument("--sem-janela", action="store_true")
     a = ap.parse_args()
 
@@ -76,11 +89,11 @@ def main():
         print("Nao consegui abrir:", a.video)
         return
     os.makedirs(a.pasta, exist_ok=True)
-    nome = a.nome or os.path.splitext(os.path.basename(a.video))[0]
+    nome = a.nome or os.path.splitext(os.path.basename(a.video))[0] + ("_ca" if a.modelo == "ca" else "")
     fps = cap.get(cv2.CAP_PROP_FPS) or 30
     saida = None
 
-    rastreador = Rastreador(sd=a.sd, sm=a.sm, max_sem_medicao=a.max_sem)
+    rastreador = Rastreador(sd=a.sd, sm=a.sm, max_sem_medicao=a.max_sem, modelo=a.modelo, sa=a.sa)
     det, rast, trilha = [], [], []
     escuro, n_det, n_escuro, k, t0 = 0, 0, 0, 0, time.time()
 
@@ -111,7 +124,8 @@ def main():
             rast.append([k, s["estado"], round(s["pred"][0], 2), round(s["pred"][1], 2),
                          "" if est[0] == "" else round(est[0], 2), "" if est[1] == "" else round(est[1], 2)])
 
-        desenhar(frame, k, z, s, trilha, escuro)
+        fut = rastreador.prever(a.k) if a.k > 0 else None
+        desenhar(frame, k, z, s, trilha, escuro, fut, a.k)
         saida.write(frame)
         k += 1
         if not a.sem_janela:

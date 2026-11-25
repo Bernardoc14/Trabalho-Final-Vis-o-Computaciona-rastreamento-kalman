@@ -1,0 +1,4 @@
+config,sd,erro_bruto_px,erro_filtrado_px,tremor_bruto,tremor_filtrado,atraso_quadros,oclusao_quadros,recuperados_ate_20px,quadros_ate_retomar,erro_na_oclusao_px
+teimoso (elefante),0.5,7.29,139.88,4.4,5.48,1,17,0/1,11,125.43
+intermediário,3.0,7.29,7.69,4.4,2.79,0,17,0/1,0,26.45
+nervoso (peixinho-dourado),20.0,7.29,7.27,4.4,4.11,0,17,1/1,0,18.38
